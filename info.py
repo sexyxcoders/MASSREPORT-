@@ -95,7 +95,7 @@ Hi {},
 
 This bot reports channels or groups in mass using Telegram account session strings generated via @.
 
-This bot is created by @itzdaxx
+This bot is created by @noncarder
 """
 
     HELP_MSG = """
@@ -123,7 +123,7 @@ This bot is created by @itzdaxx
 
     ABOUT_MSG = """
 - My Name : <a href="https://t.me/{}">{}</a>
-- Creator : <a href="https://t.me/itzdaxx">@itzdaxx</a>
+- Creator : <a href="https://t.me/noncarder">@noncarder</a>
 - Library : Pyrogram
 - Language : Python 3
 - Database : MongoDB
