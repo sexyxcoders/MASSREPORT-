@@ -7,22 +7,22 @@
     "env": {
         "API_ID": {
             "description": "Your APP ID From my.telegram.org ",
-            "value": "",
+            "value": "22657083",
             "required": true
         },
         "API_HASH": {
             "description": "Your API Hash From my.telegram.org ",
-            "value": "",
+            "value": "d6186691704bd901bdab275ceaab88f3",
             "required": true
         },
         "BOT_TOKEN": {
             "description": "Your Bot Token From @BotFather",
-            "value": "",
+            "value": "8314045999:AAFk45sqRkbIUXdK3F9t0wsKXTvub6l8zfw",
             "required": true
         },
         "OWNER": {
             "description":"Add Your User or Chat ID",
-            "value": "",
+            "value": "8449801101",
             "required": true
         }
     },
