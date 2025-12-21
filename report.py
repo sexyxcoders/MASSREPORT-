@@ -5,19 +5,10 @@ from pathlib import Path
 
 from pyrogram import Client
 from pyrogram.raw.functions.account import ReportPeer
-from pyrogram.raw.types import (
-    InputPeerChannel,
-    InputPeerUser,
-    InputReportReasonChildAbuse,
-    InputReportReasonCopyright,
-    InputReportReasonFake,
-    InputReportReasonGeoIrrelevant,
-    InputReportReasonIllegalDrugs,
-    InputReportReasonPornography,
-    InputReportReasonSpam,
-    InputReportReasonPersonalDetails,
-    InputReportReasonViolence
-)
+from pyrogram.raw.types import *
+
+BASE_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = BASE_DIR / "config.json"
 
 # ───────────────── CONSTANTS ───────────────── #
 
