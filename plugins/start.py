@@ -29,7 +29,7 @@ async def handle_start(bot: Client, message: Message):
             InlineKeyboardButton("ʙᴏᴛ ɪɴғᴏ", callback_data="about")
         ],
         [
-            InlineKeyboardButton("sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ", url="https://t.me/NexaMeetups")
+            InlineKeyboardButton("sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ", url="https://t.me/NexaMeetup")
         ]
     ]
 
