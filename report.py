@@ -1,81 +1,123 @@
 import sys
-from pyrogram import Client, filters
-import asyncio
 import json
+import asyncio
+from pathlib import Path
+
+from pyrogram import Client
 from pyrogram.raw.functions.account import ReportPeer
-from pyrogram.raw.types import *
+from pyrogram.raw.types import (
+    InputPeerChannel,
+    InputPeerUser,
+    InputReportReasonChildAbuse,
+    InputReportReasonCopyright,
+    InputReportReasonFake,
+    InputReportReasonGeoIrrelevant,
+    InputReportReasonIllegalDrugs,
+    InputReportReasonPornography,
+    InputReportReasonSpam,
+    InputReportReasonPersonalDetails,
+    InputReportReasonViolence
+)
+
+# ───────────────── CONSTANTS ───────────────── #
+
+CONFIG_PATH = Path("config.json")
+
+# ───────────────── REPORT REASONS ───────────────── #
+
+REASON_MAP = {
+    "Report for child abuse": InputReportReasonChildAbuse,
+    "Report for copyrighted content": InputReportReasonCopyright,
+    "Report for impersonation": InputReportReasonFake,
+    "Report an irrelevant geogroup": InputReportReasonGeoIrrelevant,
+    "Report an illegal durg": InputReportReasonIllegalDrugs,
+    "Reason for Pornography": InputReportReasonPornography,
+    "Report for spam": InputReportReasonSpam,
+    "Report for offensive person detail": InputReportReasonPersonalDetails,
+    "Report for Violence": InputReportReasonViolence
+}
 
 
-def get_reason(text):
-    if text == "Report for child abuse":
-        return InputReportReasonChildAbuse()
-    elif text == "Report for impersonation":
-        return InputReportReasonFake()
-    elif text == "Report for copyrighted content":
-        return InputReportReasonCopyright()
-    elif text == "Report an irrelevant geogroup":
-        return InputReportReasonGeoIrrelevant()
-    elif text == "Reason for Pornography":
-        return InputReportReasonPornography()
-    elif text == "Report an illegal durg":
-        return InputReportReasonIllegalDrugs()
-    elif text == "Report for offensive person detail":
-        return InputReportReasonSpam()
-    elif text == "Report for spam":
-        return InputReportReasonPersonalDetails()
-    elif text == "Report for Violence":
-        return InputReportReasonViolence()
+def get_reason(reason_text: str):
+    cls = REASON_MAP.get(reason_text)
+    if not cls:
+        raise ValueError("Invalid report reason")
+    return cls()
 
-#report = app.send(report_peer)
 
-async def main(message):
-     config = (json.load(open("config.json")))
-     resportreaso = message
-     resportreason = get_reason(message)
-    # resportreason = input("whats ur pepoet reason: ")
-     
-     pee = config['Target']
-     for account in config["accounts"]:
-        string = account["Session_String"]
-        Name = account['OwnerName']
-        async with Client(name="Session", session_string=string) as app:
-            try:
-                #await app.get_chat(-1001433138571)
-                peer = await app.resolve_peer(pee)
-                peer_id = peer.channel_id
-                access_hash = peer.access_hash
-                channel = InputPeerChannel(channel_id=peer_id, access_hash=access_hash)
-            except Exception as e:
-                print(e)
-            # elif dat.lower() == "user":
-            #     peer = await app.resolve_peer(pee)
-                
-            #     user_id = int(peer.user_id)
-            #     access_hash = str(peer.access_hash)
-            #     channel = InputPeerUser(user_id=user_id, access_hash=access_hash)
-            
-            report_peer = ReportPeer(
-                                        peer=channel, 
-                                        reason=resportreason, 
-                                        message=resportreaso
-                                    )
+# ───────────────── CORE LOGIC ───────────────── #
 
-            try:
-                result = await app.invoke(report_peer)
-                print(result, 'Reported by Account', Name)
-                 
-            except BaseException as e:
-                print(e)
-                print("failed to report from :", Name)
-            
-                
+async def report_with_account(target: str, session: str, name: str, reason, message: str):
+    async with Client(
+        name=f"report_{name}",
+        session_string=session,
+        no_updates=True
+    ) as app:
+
+        peer = await app.resolve_peer(target)
+
+        # Channel / Group
+        if hasattr(peer, "channel_id"):
+            input_peer = InputPeerChannel(
+                channel_id=peer.channel_id,
+                access_hash=peer.access_hash
+            )
+
+        # User
+        elif hasattr(peer, "user_id"):
+            input_peer = InputPeerUser(
+                user_id=peer.user_id,
+                access_hash=peer.access_hash
+            )
+
+        else:
+            raise RuntimeError("Unsupported peer type")
+
+        report = ReportPeer(
+            peer=input_peer,
+            reason=reason,
+            message=message
+        )
+
+        return await app.invoke(report)
+
+
+async def main(report_message: str):
+
+    if not CONFIG_PATH.exists():
+        raise RuntimeError("config.json not found")
+
+    config = json.load(open(CONFIG_PATH, "r", encoding="utf-8"))
+
+    target = config.get("Target")
+    accounts = config.get("accounts", [])
+
+    if not target or not accounts:
+        raise RuntimeError("Target or accounts missing")
+
+    # Reason is embedded in report_message header (already chosen in bot)
+    reason = get_reason(report_message)
+
+    for acc in accounts:
+        try:
+            result = await report_with_account(
+                target=target,
+                session=acc["Session_String"],
+                name=acc["OwnerName"],
+                reason=reason,
+                message=report_message
+            )
+            print(f"✅ Reported by {acc['OwnerName']}")
+
+        except Exception as e:
+            print(f"❌ Failed from {acc['OwnerName']} → {e}")
+
+
+# ───────────────── ENTRY POINT ───────────────── #
+
 if __name__ == "__main__":
-    # Check if the correct number of command-line arguments is provided
     if len(sys.argv) != 2:
-        print("Usage: python your_script.py <reason> <message>")
+        print("Usage: python report.py <report_message>")
         sys.exit(1)
 
-    # Get command-line arguments
-    input_string = sys.argv[1]
-
-    asyncio.run(main(message=input_string))
+    asyncio.run(main(sys.argv[1]))
