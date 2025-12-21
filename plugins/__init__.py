@@ -1,13 +1,24 @@
 from aiohttp import web
 
+# ───────────────── ROUTES ───────────────── #
+
 routes = web.RouteTableDef()
 
-@routes.get("/", allow_head=True)
-async def root_route_handler(request):
-    return web.json_response("itzdaxx")
 
+@routes.get("/", allow_head=True)
+async def root_handler(request):
+    return web.json_response(
+        {
+            "status": "ok",
+            "service": "Nexa Report Bot",
+            "message": "Bot is running"
+        }
+    )
+
+
+# ───────────────── WEB SERVER ───────────────── #
 
 async def web_server():
-    web_app = web.Application(client_max_size=30000000)
-    web_app.add_routes(routes)
-    return web_app
+    app = web.Application(client_max_size=30 * 1024 * 1024)
+    app.add_routes(routes)
+    return app
