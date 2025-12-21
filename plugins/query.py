@@ -1,231 +1,252 @@
 import json
 import os
-from pathlib import Path
 import re
 import shutil
-import subprocess
 import sys
 import time
+from pathlib import Path
+
 import psutil
 from pyrogram import Client, filters
-from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+
 from info import Config, Txt
 
-config_path = Path("config.json")
+# ───────────────── CONSTANTS ───────────────── #
+
+CONFIG_PATH = Path("config.json")
+
+# ───────────────── HELPERS ───────────────── #
+
+def load_config():
+    if not CONFIG_PATH.exists():
+        return None
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_config(data):
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
 
 
 def humanbytes(size):
     if not size:
-        return ""
-    power = 2**10
+        return "0 B"
+    power = 1024
     n = 0
-    Dic_powerN = {0: ' ', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
-    while size > power:
+    labels = ["B", "KB", "MB", "GB", "TB"]
+    while size >= power and n < len(labels) - 1:
         size /= power
         n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'ʙ'
+    return f"{round(size, 2)} {labels[n]}"
 
+
+def clean_target(text: str):
+    return re.sub(r"(https?://)|(t\.me/)|@", "", text).strip()
+
+
+# ───────────────── CALLBACK HANDLER ───────────────── #
 
 @Client.on_callback_query()
-async def handle_Query(bot: Client, query: CallbackQuery):
-
+async def handle_query(bot: Client, query: CallbackQuery):
     data = query.data
+    uid = query.from_user.id
 
+    # ───── HELP ───── #
     if data == "help":
-
-        HelpBtn = [
-            [InlineKeyboardButton(text='Tᴀʀɢᴇᴛ 🎯', callback_data='targetchnl'), InlineKeyboardButton
-                (text='Dᴇʟᴇᴛᴇ Cᴏɴғɪɢ ❌', callback_data='delete_conf')],
-            [InlineKeyboardButton(text='Tɢ Aᴄᴄᴏᴜɴᴛs 👥', callback_data='account_config'),
-             InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='home')]
+        buttons = [
+            [
+                InlineKeyboardButton("🎯 Target", callback_data="target"),
+                InlineKeyboardButton("❌ Delete Config", callback_data="delete_conf")
+            ],
+            [
+                InlineKeyboardButton("👥 Accounts", callback_data="accounts"),
+                InlineKeyboardButton("⟸ Back", callback_data="home")
+            ]
         ]
+        return await query.message.edit(
+            Txt.HELP_MSG,
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
-        await query.message.edit(text=Txt.HELP_MSG, reply_markup=InlineKeyboardMarkup(HelpBtn))
+    # ───── SERVER STATUS ───── #
+    if data == "server":
+        uptime = time.strftime(
+            "%Hh %Mm %Ss",
+            time.gmtime(time.time() - Config.BOT_START_TIME)
+        )
 
-    elif data == "server":
+        total, used, free = shutil.disk_usage(".")
+        cpu = psutil.cpu_percent()
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage("/").percent
+
+        text = (
+            "<b><u>Bot Status</u></b>\n\n"
+            f"⏱ Uptime: <code>{uptime}</code>\n"
+            f"🧠 CPU: <code>{cpu}%</code>\n"
+            f"💾 RAM: <code>{ram}%</code>\n"
+            f"📦 Disk: <code>{disk}%</code>\n"
+            f"📂 Total: <code>{humanbytes(total)}</code>\n"
+            f"📂 Used: <code>{humanbytes(used)}</code>\n"
+            f"📂 Free: <code>{humanbytes(free)}</code>"
+        )
+
+        return await query.message.edit(
+            text,
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⟸ Back", callback_data="home")]]
+            )
+        )
+
+    # ───── ABOUT ───── #
+    if data == "about":
+        bot_info = await bot.get_me()
+        return await query.message.edit(
+            Txt.ABOUT_MSG.format(bot_info.username),
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⟸ Back", callback_data="home")]]
+            )
+        )
+
+    # ───── HOME ───── #
+    if data == "home":
+        buttons = [
+            [
+                InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help"),
+                InlineKeyboardButton("sᴛᴀᴛᴜs", callback_data="server")
+            ],
+            [
+                InlineKeyboardButton("ɴᴇxᴀ//ᴄᴏᴅᴇʀs", url="https://t.me/NexaCoders"),
+                InlineKeyboardButton("ʙᴏᴛ ɪɴғᴏ", callback_data="about")
+            ],
+            [
+                InlineKeyboardButton("sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ", url="https://t.me/NexaMeetup")
+            ]
+        ]
+        return await query.message.edit(
+            Txt.START_MSG.format(query.from_user.mention),
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    # ───── DELETE CONFIG ───── #
+    if data == "delete_conf":
+        if uid != Config.OWNER:
+            return await query.answer("Owner only!", show_alert=True)
+
+        buttons = [
+            [InlineKeyboardButton("✅ Yes", callback_data="del_yes")],
+            [InlineKeyboardButton("❌ No", callback_data="del_no")]
+        ]
+        return await query.message.edit(
+            "⚠️ Are you sure you want to delete config?",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    if data == "del_yes":
+        if CONFIG_PATH.exists():
+            CONFIG_PATH.unlink()
+        return await query.message.edit("✅ Config deleted")
+
+    if data == "del_no":
+        return await query.message.edit("❌ Operation cancelled")
+
+    # ───── TARGET INFO ───── #
+    if data == "target":
+        config = load_config()
+        if not config or not config.get("Target"):
+            return await query.message.edit(
+                "❌ No target set\nUse /set_target",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("⟸ Back", callback_data="help")]]
+                )
+            )
+
         try:
-            msg = await query.message.edit(text="__Processing...__")
-            currentTime = time.strftime("%Hh%Mm%Ss", time.gmtime(
-                time.time() - Config.BOT_START_TIME))
-            total, used, free = shutil.disk_usage(".")
-            total = humanbytes(total)
-            used = humanbytes(used)
-            free = humanbytes(free)
-            cpu_usage = psutil.cpu_percent()
-            ram_usage = psutil.virtual_memory().percent
-            disk_usage = psutil.disk_usage('/').percent
-            ms_g = f"""<b><u>Bot Status</b></u>
+            chat = await bot.get_chat(config["Target"])
+            text = (
+                f"🎯 <b>Current Target</b>\n\n"
+                f"• Name: <code>{chat.title}</code>\n"
+                f"• Username: <code>@{chat.username}</code>\n"
+                f"• ID: <code>{chat.id}</code>"
+            )
+        except:
+            text = f"🎯 Target: <code>{config['Target']}</code>"
 
-# Uptime: <code>{currentTime}</code>
-# CPU Usage: <code>{cpu_usage}%</code>
-# RAM Usage: <code>{ram_usage}%</code>
-# Total Disk Space: <code>{total}</code>
-# Used Space: <code>{used} ({disk_usage}%)</code>
-# Free Space: <code>{free}</code> """
+        return await query.message.edit(
+            text,
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("🔄 Change Target", callback_data="change_target")],
+                    [InlineKeyboardButton("⟸ Back", callback_data="help")]
+                ]
+            )
+        )
 
-            await msg.edit_text(text=ms_g, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='home')]]))
-        except Exception as e:
-            print('Error on line {}'.format(
-                sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
-
-    elif data == "about":
-        botuser = await bot.get_me()
-        await query.message.edit(text=Txt.ABOUT_MSG.format(botuser.username, botuser.username), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='home')]]))
-
-    elif data == "home":
-        Btn = [
-            [InlineKeyboardButton(text='ʜᴇʟᴘ', callback_data='help'), InlineKeyboardButton(
-                text='ʙᴏᴛ ᴜᴘᴅᴀᴛᴇ', callback_data='server')],
-            [InlineKeyboardButton(text='ɴᴇxᴀ//ᴄᴏᴅᴇʀs', url='https://t.me/NexaCoders'),
-             InlineKeyboardButton(text='ʙᴏᴛ ɪɴғᴏ', callback_data='about')],
-            [InlineKeyboardButton(text='sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ',
-                                  url='https://t.me/NexaMeetup')]
-        ]
-
-        await query.message.edit(text=Txt.START_MSG.format(query.from_user.mention), reply_markup=InlineKeyboardMarkup(Btn))
-
-    elif data == "delete_conf":
-
-        if query.from_user.id != Config.OWNER:
-            return await query.message.edit("**You're Not Admin To Perform this task ❌**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='help')]]))
-            
-        btn = [
-            [InlineKeyboardButton(text='Yes', callback_data='delconfig-yes')],
-            [InlineKeyboardButton(text='No', callback_data='delconfig-no')]
-        ]
-
-        await query.message.edit(text="**⚠️ Are you Sure ?**\n\nYou want to delete the Config.", reply_markup=InlineKeyboardMarkup(btn))
-
-    elif data == "targetchnl":
-
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as file:
-                config = json.load(file)
-
-        else:
-            return await query.message.edit(text="You didn't make a config yet !\n\n Firstly make config by using /make_config", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='help')]]))
-
-        Info = await bot.get_chat(config['Target'])
-
-        btn = [
-            [InlineKeyboardButton(text='Change Target',
-                                  callback_data='chgtarget')],
-            [InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='help')]
-        ]
-
-        text = f"Channel Name :- <code> {Info.title} </code>\nChannel Username :- <code> @{Info.username} </code>\nChannel Chat Id :- <code> {Info.id} </code>"
-
-        await query.message.edit(text=text, reply_markup=InlineKeyboardMarkup(btn))
-
-    elif data == "chgtarget":
+    # ───── CHANGE TARGET ───── #
+    if data == "change_target":
+        if uid != Config.OWNER:
+            return await query.answer("Owner only!", show_alert=True)
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as file:
-                config = json.load(file)
+            target_msg = await bot.ask(
+                query.message.chat.id,
+                Txt.SEND_TARGET_CHANNEL,
+                filters=filters.text,
+                timeout=60
+            )
+        except:
+            return await query.message.edit("⏳ Timed out")
 
-            try:
-                target = await bot.ask(text=Txt.SEND_TARGET_CHANNEL, chat_id=query.message.chat.id, filters=filters.text, timeout=60)
-            except:
+        new_target = clean_target(target_msg.text)
+        config = load_config() or {}
+        config["Target"] = new_target
+        save_config(config)
 
-                await bot.send_message(query.from_user.id, "Error!!\n\nRequest timed out.\nRestart by using /target", reply_to_message_id=target.id)
-                return
+        return await query.message.edit(
+            f"✅ Target updated\n\n<code>{new_target}</code>"
+        )
 
-            ms = await query.message.reply_text("**Please Wait...**", reply_to_message_id=query.message.id)
+    # ───── ACCOUNTS LIST ───── #
+    if data == "accounts":
+        config = load_config()
+        if not config or not config.get("accounts"):
+            return await query.message.edit(
+                "❌ No accounts added",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("⟸ Back", callback_data="help")]]
+                )
+            )
 
-            group_target_id = target.text
-            gi = re.sub("(@)|(https://)|(http://)|(t.me/)",
-                        "", group_target_id)
+        buttons = [
+            [InlineKeyboardButton(acc["OwnerName"], callback_data=f"acc_{acc['OwnerUid']}")]
+            for acc in config["accounts"]
+        ]
+        buttons.append([InlineKeyboardButton("⟸ Back", callback_data="help")])
 
-            for account in config['accounts']:
-                # Run a shell command and capture its output
-                try:
+        return await query.message.edit(
+            "👥 <b>Added Accounts</b>",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
-                    process = subprocess.Popen(
-                        ["python", f"login.py", f"{gi}",
-                            f"{account['Session_String']}"],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+    # ───── ACCOUNT INFO ───── #
+    if data.startswith("acc_"):
+        uid_clicked = int(data.split("_")[1])
+        config = load_config()
+
+        for acc in config.get("accounts", []):
+            if acc["OwnerUid"] == uid_clicked:
+                return await query.message.edit(
+                    Txt.ACCOUNT_INFO.format(acc["OwnerName"], acc["OwnerUid"]),
+                    reply_markup=InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("⟸ Back", callback_data="accounts")]]
                     )
-                except Exception as err:
-                    await bot.send_message(msg.chat.id, text=f"<b>ERROR :</b>\n<pre>{err}</pre>")
+                )
 
-                # Use communicate() to interact with the process
-                stdout, stderr = process.communicate()
-
-                # Get the return code
-                return_code = process.wait()
-
-                # Check the return code to see if the command was successful
-                if return_code == 0:
-                    # Print the output of the command
-                    print("Command output:")
-                    # Assuming output is a bytes object
-                    output_bytes = stdout
-                    # Decode bytes to string and replace "\r\n" with newlines
-                    output_string = output_bytes.decode(
-                        'utf-8').replace('\r\n', '\n')
-                    print(output_string)
-
-                else:
-                    # Print the error message if the command failed
-                    print("Command failed with error:")
-                    print(stderr)
-                    return await query.message.edit('**Something Went Wrong Kindly Check your Inputs Whether You Have Filled Correctly or Not !**')
-
-            newConfig = {
-                "Target": gi,
-                "accounts": config['accounts']
-            }
-
-            with open(config_path, 'w', encoding='utf-8') as file:
-                json.dump(newConfig, file, indent=4)
-
-            await ms.edit("**Target Updated ✅**\n\nUse /target to check your target")
-        except Exception as e:
-            print('Error on line {}'.format(
-                sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
-
-    elif data.startswith('delconfig'):
-        condition = data.split('-')[1]
-        try:
-            if condition == 'yes':
-                os.remove('config.json')
-                await query.message.edit("**Successfully Deleted ✅**")
-            else:
-                await query.message.edit("**You Canceled The Process ❌**")
-        except Exception as e:
-            await query.message.edit(f"{e}\n\n Error 😵")
-
-    elif data == "account_config":
-
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as file:
-                config = json.load(file)
-
-        else:
-            return await query.message.edit(text="You didn't make a config yet !\n\n Firstly make config by using /make_config", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='help')]]))
-
-        with open(config_path, 'r', encoding='utf-8') as file:
-            config = json.load(file)
-
-        UserInfo = []
-        for account in config["accounts"]:
-            OwnerUid = account["OwnerUid"]
-            OwnerName = account['OwnerName']
-            UserInfo.append([InlineKeyboardButton(
-                text=f"{OwnerName}", callback_data=f"{OwnerUid}")])
-
-        UserInfo.append([InlineKeyboardButton(
-            text='⟸ Bᴀᴄᴋ', callback_data='help')])
-
-        await query.message.edit(text="**The Telegram Account You have Added 👇**", reply_markup=InlineKeyboardMarkup(UserInfo))
-
-    elif int(data) in [userId['OwnerUid'] for userId in (json.load(open("config.json")))['accounts']]:
-        accountData = {}
-        for account in (json.load(open("config.json")))['accounts']:
-            if int(data) == account["OwnerUid"]:
-                accountData.update({'Name': account['OwnerName']})
-                accountData.update({'UserId': account['OwnerUid']})
-
-        await query.message.edit(text=Txt.ACCOUNT_INFO.format(accountData.get('Name'), accountData.get('UserId')), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='help')]]))
-        accountData = {}
+    # ───── FALLBACK ───── #
+    await query.answer("Unknown action", show_alert=True)
