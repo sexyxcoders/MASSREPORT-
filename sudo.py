@@ -73,4 +73,14 @@ async def del_sudo(_, msg: Message):
         f"🗑 **User `{uid}` removed from SUDO**\n\nRestarting bot…"
     )
 
+@Client.on_message(filters.private & filters.command("sudolist"))
+async def sudo_list(_, msg):
+    if msg.from_user.id != Config.OWNER:
+        return await msg.reply_text("⛔ Owner only")
+
+    sudo_users = os.environ.get("SUDO", "")
+    await msg.reply_text(
+        "👑 **SUDO USERS**\n\n" + "\n".join(sudo_users.split())
+    )
+
     restart_bot()
