@@ -1,25 +1,104 @@
 import os
 import sys
+
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import (
+    Message,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    CallbackQuery
+)
 
 from info import Config, Txt
 
 
-@Client.on_message(filters.private & filters.command('start'))
-async def handle_start(bot:Client, message:Message):
+# ───────────────── START COMMAND ───────────────── #
 
-    Btn = [
-        [InlineKeyboardButton(text='ʜᴇʟᴘ', callback_data='help'), InlineKeyboardButton(text='sᴛᴀᴛᴜs', callback_data='server')],
-        [InlineKeyboardButton(text='ɴᴇxᴀ//ɴᴇᴛᴡᴏʀᴋ', url='https://t.me/NexaCoders'), InlineKeyboardButton(text='ʙᴏᴛ ɪɴғᴏ', callback_data='about')],
-        [InlineKeyboardButton(text='sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ', url='https://t.me/NexaMeetups')]
+@Client.on_message(filters.private & filters.command("start"))
+async def handle_start(bot: Client, message: Message):
+
+    buttons = [
+        [
+            InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help"),
+            InlineKeyboardButton("sᴛᴀᴛᴜs", callback_data="status")
+        ],
+        [
+            InlineKeyboardButton("ɴᴇxᴀ//ɴᴇᴛᴡᴏʀᴋ", url="https://t.me/NexaCoders"),
+            InlineKeyboardButton("ʙᴏᴛ ɪɴғᴏ", callback_data="about")
+        ],
+        [
+            InlineKeyboardButton("sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ", url="https://t.me/NexaMeetups")
         ]
+    ]
 
-    await message.reply_text(text=Txt.START_MSG.format(message.from_user.mention), reply_markup=InlineKeyboardMarkup(Btn))
+    await message.reply_text(
+        text=Txt.START_MSG.format(message.from_user.mention),
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
 
 
-#Restart to cancell all process 
-@Client.on_message(filters.private & filters.command("r") & filters.user(Config.SUDO))
-async def restart_bot(b, m):
-    await m.reply_text("🔄__𝗒𝗈𝗎𝗋 𝖻𝗈𝗍 𝗌𝗎𝖼𝖼𝖾𝗌𝗌𝖿𝗎𝗅 𝗋𝖾𝗌𝗍𝖺𝗋𝗍.....__")
+# ───────────────── CALLBACK HANDLERS ───────────────── #
+
+@Client.on_callback_query(filters.regex("^help$"))
+async def help_callback(_, cq: CallbackQuery):
+    await cq.message.edit_text(
+        Txt.HELP_MSG,
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅ Back", callback_data="back")]]
+        )
+    )
+
+
+@Client.on_callback_query(filters.regex("^status$"))
+async def status_callback(_, cq: CallbackQuery):
+    await cq.message.edit_text(
+        Txt.STATUS_MSG,
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅ Back", callback_data="back")]]
+        )
+    )
+
+
+@Client.on_callback_query(filters.regex("^about$"))
+async def about_callback(_, cq: CallbackQuery):
+    await cq.message.edit_text(
+        Txt.ABOUT_MSG,
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("⬅ Back", callback_data="back")]]
+        )
+    )
+
+
+@Client.on_callback_query(filters.regex("^back$"))
+async def back_callback(bot: Client, cq: CallbackQuery):
+
+    buttons = [
+        [
+            InlineKeyboardButton("ʜᴇʟᴘ", callback_data="help"),
+            InlineKeyboardButton("sᴛᴀᴛᴜs", callback_data="status")
+        ],
+        [
+            InlineKeyboardButton("ɴᴇxᴀ//ɴᴇᴛᴡᴏʀᴋ", url="https://t.me/NexaCoders"),
+            InlineKeyboardButton("ʙᴏᴛ ɪɴғᴏ", callback_data="about")
+        ],
+        [
+            InlineKeyboardButton("sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ", url="https://t.me/NexaMeetups")
+        ]
+    ]
+
+    await cq.message.edit_text(
+        Txt.START_MSG.format(cq.from_user.mention),
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+
+# ───────────────── RESTART COMMAND ───────────────── #
+
+@Client.on_message(
+    filters.private
+    & filters.command("restart")
+    & filters.user(Config.SUDO)
+)
+async def restart_bot(_, message: Message):
+    await message.reply_text("🔄 **Bot is restarting…**")
     os.execl(sys.executable, sys.executable, *sys.argv)
