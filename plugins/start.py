@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+import psutil
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -12,7 +14,7 @@ from pyrogram.types import (
 from info import Config, Txt
 
 
-# ───────────────── START COMMAND ───────────────── #
+# ───────────────── START ───────────────── #
 
 @Client.on_message(filters.private & filters.command("start"))
 async def handle_start(bot: Client, message: Message):
@@ -32,12 +34,12 @@ async def handle_start(bot: Client, message: Message):
     ]
 
     await message.reply_text(
-        text=Txt.START_MSG.format(message.from_user.mention),
+        Txt.START_MSG.format(message.from_user.mention),
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
 
-# ───────────────── CALLBACK HANDLERS ───────────────── #
+# ───────────────── HELP ───────────────── #
 
 @Client.on_callback_query(filters.regex("^help$"))
 async def help_callback(_, cq: CallbackQuery):
@@ -49,28 +51,56 @@ async def help_callback(_, cq: CallbackQuery):
     )
 
 
+# ───────────────── STATUS (FIXED) ───────────────── #
+
 @Client.on_callback_query(filters.regex("^status$"))
 async def status_callback(_, cq: CallbackQuery):
+
+    uptime = time.strftime(
+        "%Hh %Mm %Ss",
+        time.gmtime(time.time() - Config.BOT_START_TIME)
+    )
+
+    cpu = psutil.cpu_percent()
+    ram = psutil.virtual_memory().percent
+    disk = psutil.disk_usage("/").percent
+
+    text = (
+        "🟢 **Bot Status**\n\n"
+        f"⏱ Uptime: `{uptime}`\n"
+        f"🧠 CPU Usage: `{cpu}%`\n"
+        f"💾 RAM Usage: `{ram}%`\n"
+        f"📀 Disk Usage: `{disk}%`\n\n"
+        "✅ Bot running normally"
+    )
+
     await cq.message.edit_text(
-        Txt.STATUS_MSG,
+        text,
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("⬅ Back", callback_data="back")]]
         )
     )
 
+
+# ───────────────── ABOUT (FIXED) ───────────────── #
 
 @Client.on_callback_query(filters.regex("^about$"))
-async def about_callback(_, cq: CallbackQuery):
+async def about_callback(bot: Client, cq: CallbackQuery):
+
+    me = await bot.get_me()
+
     await cq.message.edit_text(
-        Txt.ABOUT_MSG,
+        Txt.ABOUT_MSG.format(me.username, me.first_name),
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("⬅ Back", callback_data="back")]]
         )
     )
 
 
+# ───────────────── BACK ───────────────── #
+
 @Client.on_callback_query(filters.regex("^back$"))
-async def back_callback(bot: Client, cq: CallbackQuery):
+async def back_callback(_, cq: CallbackQuery):
 
     buttons = [
         [
@@ -92,7 +122,7 @@ async def back_callback(bot: Client, cq: CallbackQuery):
     )
 
 
-# ───────────────── RESTART COMMAND ───────────────── #
+# ───────────────── RESTART ───────────────── #
 
 @Client.on_message(
     filters.private
